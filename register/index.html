@@ -62,28 +62,76 @@
 
 <script>
 
-document.getElementById('enable').onclick = async () => {
+const VAPID_PUBLIC_KEY = "COLE_AQUI_SUA_PUBLIC_KEY";
 
-  if (!('serviceWorker' in navigator)) {
-    document.getElementById('status').textContent =
-      'Este navegador não suporta notificações.';
+const params = new URLSearchParams(window.location.search);
+const userId = params.get("user");
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding)
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
+
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+
+  return outputArray;
+}
+
+document.getElementById("enable").onclick = async () => {
+
+  if (!userId) {
+    document.getElementById("status").textContent =
+      "Usuário inválido.";
     return;
   }
 
   const permission = await Notification.requestPermission();
 
-  if (permission !== 'granted') {
-    document.getElementById('status').textContent =
-      'Permissão negada.';
+  if (permission !== "granted") {
+    document.getElementById("status").textContent =
+      "Permissão negada.";
     return;
   }
 
   const registration =
-    await navigator.serviceWorker.register('/push-sw.js');
+    await navigator.serviceWorker.register("/push-sw.js");
 
-  document.getElementById('status').textContent =
-    'Service Worker registrado com sucesso.';
+  const subscription =
+    await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey:
+        urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
 
+  const response = await fetch(
+    "https://SEU_PROJETO.supabase.co/functions/v1/subscribe",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_id: Number(userId),
+        subscription,
+      }),
+    }
+  );
+
+  const result = await response.json();
+
+  if (result.success) {
+    document.getElementById("status").textContent =
+      "Notificações ativadas com sucesso!";
+  } else {
+    document.getElementById("status").textContent =
+      "Erro ao salvar a inscrição.";
+  }
 };
 
 </script>
